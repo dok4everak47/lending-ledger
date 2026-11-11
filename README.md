@@ -13,7 +13,7 @@
 
 ```bash
 node --version               # >= 24（用原生 TypeScript 类型擦除，不需要 tsc / tsx）
-node --test test/*.test.ts   # 55 个用例
+node --test test/*.test.ts   # 56 个用例（含 6 进程真并发）
 node src/demo.ts             # 一条从支付到对账的完整流水线
 node src/api/http.ts         # 起服务，端口 8787；浏览器打开 http://localhost:8787/ 有操作台
 ```
@@ -66,7 +66,7 @@ src/
   payments/pay.ts    业务编排：支付（抽手续费）、结算出款、整单冲正
   recon/reconcile.ts 对账：按 externalRef 匹配，输出五类差异
   api/http.ts        10 个端点（含操作台与健康检查），错误码即契约（402 / 409 / 422）
-test/                55 个用例：领域单测 + 账务不变量 + 幂等并发语义 + 黄金端到端 + HTTP 端到端
+test/                56 个用例：领域单测 + 账务不变量 + 6 进程真并发 + 黄金端到端 + HTTP 端到端
 public/index.html    单文件操作台：记账、余额、流水、对账（无构建步骤，直接由上面的服务托管）
 ```
 
@@ -89,6 +89,12 @@ public/index.html    单文件操作台：记账、余额、流水、对账（�
 - 同 key 处理中 → 409，让客户端退避重试，而不是并发扣两次钱
 
 失败的业务执行会让幂等键一起回滚，所以「失败的请求」不留脏键，重试会真的重跑。
+
+这条不靠自述，靠测试：`test/concurrency.test.ts` fork **6 个真进程**同时用同一把键重试同一笔支付，断言只有一个进程真正扣款、其余全是重放、账簿只多一笔分录、并发之后依然借贷平衡。
+
+**（3 的延伸）并发靠数据库串行化，不靠应用层加锁**
+
+`BEGIN IMMEDIATE` 一上来就拿写锁，配合 `busy_timeout` 让并发请求排队而不是立刻失败。跨进程的锁竞争交给 SQLite，应用层不写自己的 mutex——mutex 在多实例部署下等于没有。
 
 **4. 余额校验在事务里、状态推进之前**
 
@@ -178,7 +184,7 @@ curl -X POST localhost:8787/transfers \
 ## 自测结果
 
 ```
-55 个用例全绿 · demo 断言全通过 · tsc --noEmit 无错误（需 npm i 装 @types/node）
+56 个用例全绿 · demo 断言全通过 · tsc --noEmit 无错误（需 npm i 装 @types/node）
 操作台：元素 id / CSS 类 / 标签闭合 / JS 语法静态校验通过，全部接口按 UI 真实请求序列联调通过；
 未做像素级截图回归（本机无可用的 headless 浏览器）。
 ```
