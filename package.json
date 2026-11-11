@@ -1,0 +1,39 @@
+{
+  "name": "fengbo-ledger",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "借贷账务最小闭环：复式记账 / 幂等 / 状态机 / 冲正 / 对账。TypeScript + SQLite，零运行时依赖。",
+  "keywords": [
+    "ledger",
+    "double-entry",
+    "accounting",
+    "idempotency",
+    "reconciliation",
+    "fintech",
+    "sqlite",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "梁劲舟",
+  "homepage": "https://github.com/dok4everak47/fengbo-ledger#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dok4everak47/fengbo-ledger.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dok4everak47/fengbo-ledger/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "demo": "node src/demo.ts",
+    "serve": "node src/api/http.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2"
+  }
+}

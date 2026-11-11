@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: 安装开发依赖（仅 @types/node）
+        run: npm ci --include=dev
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 单元测试 + 黄金端到端
+        run: npm test
+
+      - name: 演示脚本冒烟
+        run: npm run demo

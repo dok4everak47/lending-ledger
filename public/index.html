@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>丰泊账务台 · 借贷最小闭环</title>
+<style>
+  :root {
+    --paper: #fbfaf7;
+    --paper-2: #f4f1ea;
+    --ink: #14110f;
+    --ink-2: #3d3730;
+    --muted: #7a7168;
+    --rule: #ddd6c9;
+    --rule-strong: #c4bba9;
+    --seal: #b23a2b;
+    --seal-soft: #f6e7e3;
+    --green: #2f6b4f;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --serif: "Songti SC", "Source Han Serif SC", "Noto Serif SC", Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-image: linear-gradient(90deg, rgba(196,187,169,.16) 1px, transparent 1px);
+    background-size: 64px 100%;
+  }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 28px 80px; }
+
+  /* ── 头部 ─────────────────────────────── */
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 24px; padding: 34px 0 14px; border-bottom: 2px solid var(--ink);
+  }
+  .brand { display: flex; align-items: baseline; gap: 14px; }
+  .brand h1 {
+    font-family: var(--serif); font-size: 27px; font-weight: 600;
+    letter-spacing: .06em; margin: 0;
+  }
+  .brand .sub { font-size: 11px; letter-spacing: .22em; color: var(--muted); text-transform: uppercase; }
+  .env {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+    color: var(--muted); display: flex; align-items: center; gap: 8px;
+  }
+  .env .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+  /* ── 布局 ─────────────────────────────── */
+  main { display: grid; grid-template-columns: 400px minmax(0,1fr); gap: 0; }
+  .col-left { padding: 26px 30px 26px 0; border-right: 1px solid var(--rule); }
+  .col-right { padding: 26px 0 26px 30px; }
+
+  h2 {
+    font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 14px;
+  }
+  h2 + h2, section + section { margin-top: 34px; }
+
+  /* ── 操作切换 ─────────────────────────── */
+  .tabs { display: flex; gap: 0; border: 1px solid var(--rule-strong); margin-bottom: 20px; }
+  .tabs button {
+    flex: 1; padding: 9px 4px; background: transparent; border: 0; border-right: 1px solid var(--rule);
+    font-family: var(--sans); font-size: 13px; color: var(--ink-2); cursor: pointer; letter-spacing: .04em;
+  }
+  .tabs button:last-child { border-right: 0; }
+  .tabs button[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+
+  .amount-field { border-bottom: 1px solid var(--ink); padding-bottom: 6px; margin-bottom: 18px; }
+  .amount-field label { display: block; font-size: 11px; letter-spacing: .16em; color: var(--muted); margin-bottom: 6px; }
+  .amount-row { display: flex; align-items: baseline; gap: 8px; }
+  .amount-row .cur { font-family: var(--mono); font-size: 18px; color: var(--muted); }
+  .amount-row input {
+    flex: 1; width: 100%; border: 0; background: transparent; outline: none; padding: 0;
+    font-family: var(--mono); font-size: 34px; letter-spacing: -.01em; color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .amount-row input::placeholder { color: #cfc7b8; }
+
+  .field { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .field > span { font-size: 12px; color: var(--muted); }
+  .field input {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--rule); background: var(--paper);
+    font-family: var(--mono); font-size: 13px; color: var(--ink); outline: none;
+  }
+  .field input:focus { border-color: var(--ink); }
+
+  .actions { display: flex; gap: 8px; margin-top: 18px; }
+  button.primary, button.ghost {
+    font-family: var(--sans); font-size: 13px; letter-spacing: .05em; cursor: pointer;
+    padding: 11px 16px; border: 1px solid var(--ink);
+  }
+  button.primary { background: var(--ink); color: var(--paper); flex: 1; }
+  button.primary:hover { background: #2a241d; }
+  button.ghost { background: transparent; color: var(--ink); }
+  button.ghost:hover { background: var(--paper-2); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+
+  .hint { font-size: 11.5px; color: var(--muted); line-height: 1.6; margin-top: 10px; }
+  .hint code { font-family: var(--mono); font-size: 11px; background: var(--paper-2); padding: 1px 4px; }
+
+  /* ── 回应票据 ─────────────────────────── */
+  .receipt {
+    margin-top: 18px; border: 1px solid var(--rule-strong); background: var(--paper);
+    padding: 12px 14px; font-family: var(--mono); font-size: 12px; line-height: 1.75;
+    white-space: pre-wrap; word-break: break-all; display: none;
+  }
+  .receipt.show { display: block; }
+  .receipt.err { border-color: var(--seal); background: var(--seal-soft); color: #7d2418; }
+  .replayed-stamp {
+    display: inline-block; margin-left: 8px; padding: 1px 7px; border: 1px solid var(--seal);
+    color: var(--seal); font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    transform: rotate(-2deg);
+  }
+
+  /* ── 余额表 ───────────────────────────── */
+  table.ledger { width: 100%; border-collapse: collapse; }
+  table.ledger th {
+    text-align: left; font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--muted); font-weight: 500; padding: 0 0 7px; border-bottom: 1px solid var(--ink);
+  }
+  table.ledger th.num, table.ledger td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.ledger td {
+    padding: 10px 0; border-bottom: 1px solid var(--rule);
+    font-size: 13px; vertical-align: baseline;
+  }
+  table.ledger td.code { font-family: var(--mono); font-size: 11.5px; color: var(--muted); width: 58px; }
+  table.ledger td.num { font-family: var(--mono); font-size: 15px; }
+  table.ledger td.num.neg { color: var(--seal); }
+  table.ledger tr:last-child td { border-bottom: 1px solid var(--ink); }
+
+  .totals { display: flex; justify-content: space-between; gap: 20px; padding-top: 10px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .totals b { color: var(--ink); font-weight: 600; }
+
+  /* ── 分录流水 ─────────────────────────── */
+  .entries { margin-top: 4px; }
+  .entry { display: grid; grid-template-columns: 62px 1fr auto; gap: 12px; padding: 9px 0; border-bottom: 1px dotted var(--rule); font-size: 12.5px; }
+  .entry .id { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .entry .memo { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry .amt { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .entry .rev { color: var(--seal); font-size: 10.5px; letter-spacing: .1em; margin-left: 6px; }
+  .empty { color: var(--muted); font-size: 12.5px; padding: 14px 0; }
+
+  /* ── 对账 ─────────────────────────────── */
+  .recon-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .buckets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin: 16px 0 0; border: 1px solid var(--rule-strong); }
+  .bucket { padding: 12px 12px 14px; border-right: 1px solid var(--rule); }
+  .bucket:last-child { border-right: 0; }
+  .bucket .n { font-family: var(--mono); font-size: 22px; line-height: 1; }
+  .bucket .n.zero { color: #cfc7b8; }
+  .bucket .k { font-size: 10.5px; color: var(--muted); letter-spacing: .06em; margin-top: 7px; display: block; line-height: 1.4; }
+  .diffs { margin-top: 14px; }
+  .diff { padding: 10px 0; border-bottom: 1px dotted var(--rule); display: grid; grid-template-columns: 150px 1fr; gap: 14px; }
+  .diff .tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; padding-top: 2px; }
+  .diff .tag.transit { color: var(--green); }
+  .diff .tag.bad { color: var(--seal); }
+  .diff .body { font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
+  .diff .ref { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    .col-left { border-right: 0; border-bottom: 2px solid var(--ink); padding-right: 0; }
+    .col-right { padding-left: 0; padding-top: 24px; }
+    .buckets { grid-template-columns: repeat(2, 1fr); }
+    .bucket { border-bottom: 1px solid var(--rule); }
+    .wrap { padding: 0 18px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>丰泊账务台</h1>
+      <span class="sub">ledger console</span>
+    </div>
+    <div class="env"><span class="dot"></span><span id="env">localhost:8787</span></div>
+  </header>
+
+  <main>
+    <div class="col-left">
+      <h2>记账</h2>
+
+      <div class="tabs" role="tablist">
+        <button role="tab" data-act="funding" aria-selected="true">入金</button>
+        <button role="tab" data-act="pay" aria-selected="false">支付</button>
+        <button role="tab" data-act="settle" aria-selected="false">结算</button>
+        <button role="tab" data-act="reverse" aria-selected="false">冲正</button>
+      </div>
+
+      <div class="amount-field">
+        <label id="amount-label">入金金额</label>
+        <div class="amount-row">
+          <span class="cur">¥</span>
+          <input id="amount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="field" id="fee-field">
+        <span>手续费</span>
+        <input id="fee" value="0.60" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <span id="ref-label">业务单号</span>
+        <input id="ref" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <span>幂等键</span>
+        <input id="key" autocomplete="off">
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="submit">提交</button>
+        <button class="ghost" id="replay" title="用同一把幂等键、同一份请求体再发一次">重发</button>
+      </div>
+
+      <p class="hint" id="hint">点「重发」把同一把钥匙再插一次：应当返回同一笔分录，带 <code>replayed: true</code>，余额不变。</p>
+
+      <pre class="receipt" id="receipt"></pre>
+    </div>
+
+    <div class="col-right">
+      <section>
+        <h2>科目余额</h2>
+        <table class="ledger">
+          <thead>
+            <tr><th>科目</th><th>名称</th><th class="num">余额</th></tr>
+          </thead>
+          <tbody id="accounts"><tr><td colspan="3" class="empty">加载中…</td></tr></tbody>
+        </table>
+        <div class="totals">
+          <span>借方合计 <b id="t-debits">—</b></span>
+          <span>贷方合计 <b id="t-credits">—</b></span>
+          <span id="t-balance">—</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>最近分录</h2>
+        <div class="entries" id="entries"><div class="empty">还没有分录。</div></div>
+      </section>
+
+      <section>
+        <div class="recon-head">
+          <h2 style="margin:0">对账</h2>
+          <button class="ghost" id="recon-btn">跑一次对账</button>
+        </div>
+        <div class="buckets" id="buckets"></div>
+        <div class="diffs" id="diffs"></div>
+        <p class="hint">银行侧回单取自本机流水并注入四类典型异常（重复回单 / 金额不符 / 在途 / 无账回款），用于演示差异分类，不是真实渠道数据。</p>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  const ACCOUNTS = [
+    ['1002', '备付金'],
+    ['2001', '用户钱包'],
+    ['2002', '商户待结算'],
+    ['4001', '手续费收入'],
+  ]
+
+  const ACTS = {
+    funding: { label: '入金金额', ref: '入金流水号', fee: false, hint: '备付金 → 用户钱包。这是唯一不需要幂等键的动作（内部调账）。' },
+    pay:     { label: '支付金额', ref: '业务单号', fee: true,  hint: '钱包 → 商户待结算 + 手续费收入。重发一次，余额不应变化。' },
+    settle:  { label: '结算金额（自动取单）', ref: '业务单号', fee: false, hint: '商户待结算 → 银行备付金户。填业务单号即可，金额按单据结算。' },
+    reverse: { label: '冲正金额（自动取单）', ref: '业务单号', fee: false, hint: '不改原分录，生成反向分录把整单抵掉，状态推到 REVERSED。' },
+  }
+
+  let act = 'funding'
+  let lastRequest = null
+
+  const $ = (id) => document.getElementById(id)
+  const yuan = (minor) => (minor / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const toMinor = (text) => {
+    const cleaned = String(text).trim().replace(/,/g, '')
+    if (!/^-?\d+(\.\d{1,2})?$/.test(cleaned)) return null
+    return Math.round(Number(cleaned) * 100)
+  }
+
+  async function api(path, body) {
+    const response = await fetch(path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: body === undefined ? {} : { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    const json = await response.json().catch(() => ({}))
+    return { status: response.status, json }
+  }
+
+  function setAct(next) {
+    act = next
+    for (const button of document.querySelectorAll('.tabs button')) {
+      button.setAttribute('aria-selected', String(button.dataset.act === next))
+    }
+    const spec = ACTS[next]
+    $('amount-label').textContent = spec.label
+    $('ref-label').textContent = spec.ref
+    $('ref').placeholder = next === 'funding' ? '自动生成' : 'TX-1'
+    $('fee-field').style.display = spec.fee ? 'grid' : 'none'
+    $('amount').disabled = next === 'settle' || next === 'reverse'
+    $('hint').textContent = spec.hint
+    $('key').value = `${next}-${Math.random().toString(36).slice(2, 8)}`
+    lastRequest = null
+    $('receipt').classList.remove('show', 'err')
+  }
+
+  async function refresh() {
+    const rows = await Promise.all(ACCOUNTS.map(async ([code, name]) => {
+      const { json } = await api(`/accounts/${code}`)
+      return { code, name, minor: json.balance?.minor ?? 0, debits: json.totals?.debits ?? 0, credits: json.totals?.credits ?? 0 }
+    }))
+
+    let debits = 0
+    let credits = 0
+    $('accounts').innerHTML = rows.map((row) => {
+      debits += row.debits
+      credits += row.credits
+      const negative = row.minor < 0
+      return `<tr>
+        <td class="code">${row.code}</td>
+        <td>${row.name}</td>
+        <td class="num ${negative ? 'neg' : ''}">${yuan(row.minor)}</td>
+      </tr>`
+    }).join('')
+
+    $('t-debits').textContent = yuan(debits)
+    $('t-credits').textContent = yuan(credits)
+    const balanced = debits === credits
+    $('t-balance').innerHTML = balanced
+      ? '<b style="color:var(--green)">借贷平衡</b>'
+      : '<b style="color:var(--seal)">借贷不平</b>'
+  }
+
+  function showReceipt(status, json, replayed) {
+    const box = $('receipt')
+    box.classList.add('show')
+    box.classList.toggle('err', status >= 400)
+    const stamp = replayed ? '<span class="replayed-stamp">replayed</span>' : ''
+    const payload = JSON.stringify(json, null, 2)
+    box.innerHTML = `HTTP ${status}${stamp}\n${payload.replace(/</g, '&lt;')}`
+  }
+
+  async function submit(replay) {
+    const spec = ACTS[act]
+    const amountText = $('amount').value
+    const ref = $('ref').value.trim() || `${act.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`
+    const key = $('key').value.trim()
+    const feeMinor = toMinor($('fee').value || '0') ?? 0
+
+    if (!replay) lastRequest = null
+
+    let path = ''
+    let body = null
+
+    if (act === 'funding') {
+      const minor = toMinor(amountText)
+      if (minor === null || minor <= 0) return showReceipt(0, { error: 'InvalidAmount', message: '金额格式不对，最多两位小数' }, false)
+      path = '/funding'
+      body = { amount: minor }
+    } else if (act === 'pay') {
+      const minor = toMinor(amountText)
+      if (minor === null || minor <= 0) return showReceipt(0, { error: 'InvalidAmount', message: '金额格式不对，最多两位小数' }, false)
+      path = '/transfers'
+      body = { transferId: ref, amount: minor, fee: feeMinor }
+    } else if (act === 'settle') {
+      path = `/transfers/${encodeURIComponent(ref)}/settle`
+      body = {}
+    } else {
+      path = `/transfers/${encodeURIComponent(ref)}/reverse`
+      body = { reason: '控制台冲正' }
+    }
+
+    if (replay) {
+      if (!lastRequest) return showReceipt(0, { error: 'NothingToReplay', message: '先提交一次，再用同一把钥匙重发' }, false)
+      path = lastRequest.path
+      body = lastRequest.body
+      $('key').value = lastRequest.key
+    } else {
+      lastRequest = { path, body, key }
+    }
+
+    $('submit').disabled = true
+    $('replay').disabled = true
+    try {
+      const response = await fetch(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': $('key').value.trim() },
+        body: JSON.stringify(body),
+      })
+      const json = await response.json().catch(() => ({}))
+      showReceipt(response.status, json, json.replayed === true)
+      await refresh()
+      await refreshEntries()
+    } finally {
+      $('submit').disabled = false
+      $('replay').disabled = false
+    }
+  }
+
+  async function refreshEntries() {
+    const { json } = await api('/accounts/2001/statement')
+    const lines = (json.lines ?? []).slice(-6).reverse()
+    if (lines.length === 0) {
+      $('entries').innerHTML = '<div class="empty">还没有分录。</div>'
+      return
+    }
+    $('entries').innerHTML = lines.map((line) => `
+      <div class="entry">
+        <span class="id">${line.entryId.slice(0, 6)}</span>
+        <span class="memo">${line.externalRef} · ${line.side === 'CREDIT' ? '入' : '出'}</span>
+        <span class="amt">${line.side === 'CREDIT' ? '+' : '−'}${yuan(line.amount)}</span>
+      </div>`).join('')
+  }
+
+  const BUCKET_LABEL = {
+    AMOUNT_MISMATCH: '金额不符',
+    MISSING_IN_LEDGER: '单有账无',
+    MISSING_IN_BANK: '账有单无',
+    DUPLICATE_IN_BANK: '渠道重复',
+    DUPLICATE_IN_LEDGER: '账内重复',
+  }
+
+  function renderBuckets(byKind) {
+    $('buckets').innerHTML = Object.entries(BUCKET_LABEL).map(([kind, label]) => {
+      const n = byKind?.[kind] ?? 0
+      return `<div class="bucket">
+        <span class="n ${n === 0 ? 'zero' : ''}">${n}</span>
+        <span class="k">${label}</span>
+      </div>`
+    }).join('')
+  }
+
+  async function runRecon() {
+    const { json } = await api('/accounts/1002/statement?side=CREDIT')
+    const ledgerLines = (json.lines ?? []).map((line) => ({
+      externalRef: line.externalRef,
+      amount: line.amount,
+      occurredAt: line.occurredAt,
+    }))
+
+    if (ledgerLines.length === 0) {
+      renderBuckets({})
+      $('diffs').innerHTML = '<div class="empty">没有可对账的出款流水，先做一笔支付并结算。</div>'
+      return
+    }
+
+    // 银行侧：在本机流水上逐类注入典型异常，演示差异分类能力。
+    // 每一类都显式构造，不做「先改再删」的复合操作，避免相互抵消。
+    const bankLines = []
+
+    // 1) 渠道重复回单：同一单号推两次
+    if (ledgerLines[0]) bankLines.push({ ...ledgerLines[0] }, { ...ledgerLines[0] })
+
+    // 2) 金额不符：回单比账上多 0.05（典型的手续费口径差异）
+    if (ledgerLines[1]) {
+      bankLines.push({ ...ledgerLines[1], amount: ledgerLines[1].amount + 5 })
+    } else if (ledgerLines[0]) {
+      bankLines.push({ ...ledgerLines[0], amount: ledgerLines[0].amount + 5 })
+    }
+
+    // 3) 账有单无：第三笔起故意不回单（当日即为「在途」，超过 T+1 转「追单」）
+    //    这里只是不把 ledgerLines[2..] 放进 bankLines，无需额外代码
+
+    // 4) 单有账无：银行有回款、账上没有
+    bankLines.push({
+      externalRef: `SETTLE-BANKONLY-${Date.now().toString(36).toUpperCase()}`,
+      amount: 1200,
+      occurredAt: new Date().toISOString(),
+    })
+
+    const result = await fetch('/recon', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ledgerLines, bankLines }),
+    }).then((response) => response.json())
+
+    renderBuckets(result.summary?.byKind)
+    const shortNote = ledgerLines.length < 3
+      ? `<div class="empty" style="padding-top:10px">当前只有 ${ledgerLines.length} 笔出款流水。「账有单无」需要 3 笔以上结算才能显形，多做两笔即可。</div>`
+      : ''
+    $('diffs').innerHTML = (result.diffs ?? []).map((diff) => `
+      <div class="diff">
+        <span class="tag ${diff.inTransit ? 'transit' : 'bad'}">${diff.kind}${diff.inTransit ? ' · 在途' : ''}</span>
+        <span class="body">
+          <span class="ref">${diff.externalRef}</span>
+          ${diff.ledgerAmount !== null ? ` 账 ${yuan(diff.ledgerAmount)}` : ''}
+          ${diff.bankAmount !== null ? ` / 回单 ${yuan(diff.bankAmount)}` : ''}
+          <br>${diff.suggestion}
+        </span>
+      </div>`).join('') + shortNote || '<div class="empty">账实相符，无差异。</div>'
+  }
+
+  for (const button of document.querySelectorAll('.tabs button')) {
+    button.addEventListener('click', () => setAct(button.dataset.act))
+  }
+  $('submit').addEventListener('click', () => submit(false))
+  $('replay').addEventListener('click', () => submit(true))
+  $('recon-btn').addEventListener('click', runRecon)
+
+  setAct('funding')
+  refresh()
+  refreshEntries()
+  renderBuckets({})
+</script>
+</body>
+</html>
