@@ -30,6 +30,7 @@ import {
   settle,
 } from '../payments/pay.ts'
 import { reconcile } from '../recon/reconcile.ts'
+import { toWorklist } from '../recon/disposition.ts'
 import type { ReconLine } from '../recon/reconcile.ts'
 import type { Db } from '../store/db.ts'
 import { createDb } from '../store/db.ts'
@@ -256,7 +257,8 @@ export function createApp(db: Db): Server {
             bankLines: bankLines as ReconLine[],
             asOf: typeof body.asOf === 'string' ? body.asOf : undefined,
           })
-          respond(res, 200, result)
+          // worklist 是附加字段：差异 → 工单（责任人 / 动作 / SLA / 升级路径）
+          respond(res, 200, { ...result, worklist: toWorklist(result.diffs) })
           return
         }
 

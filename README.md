@@ -13,7 +13,7 @@
 
 ```bash
 node --version               # >= 24（用原生 TypeScript 类型擦除，不需要 tsc / tsx）
-node --test test/*.test.ts   # 56 个用例（含 6 进程真并发）
+node --test test/*.test.ts   # 63 个用例（含 6 进程真并发）
 node src/demo.ts             # 一条从支付到对账的完整流水线
 node src/api/http.ts         # 起服务，端口 8787；浏览器打开 http://localhost:8787/ 有操作台
 ```
@@ -34,6 +34,7 @@ npm ci && npm run typecheck
 - [截图](#截图)
 - [HTTP 契约](#http-契约)
 - [明确没做的](#明确没做的知道边界比假装完整重要)
+- [对账处置手册](docs/reconciliation-runbook.md)
 - [设计笔记](docs/design-notes.md)
 - [自测结果](#自测结果)
 - [开发](#开发)
@@ -65,9 +66,11 @@ src/
     idempotency.ts   幂等执行器：唯一索引即锁，同 key 异参判冲突
   ledger/ledger.ts   记账核心：写分录、算余额、冲正、试算平衡、取流水
   payments/pay.ts    业务编排：支付（抽手续费）、结算出款、整单冲正
-  recon/reconcile.ts 对账：按 externalRef 匹配，输出五类差异
+  recon/
+    reconcile.ts     对账：按 externalRef 匹配，输出五类差异 + 在途窗口
+    disposition.ts   差异 → 工单：责任人 / 动作 / SLA / 升级路径
   api/http.ts        10 个端点（含操作台与健康检查），错误码即契约（402 / 409 / 422）
-test/                56 个用例：领域单测 + 账务不变量 + 6 进程真并发 + 黄金端到端 + HTTP 端到端
+test/                63 个用例：领域单测 + 账务不变量 + 6 进程真并发 + 黄金端到端 + HTTP 端到端
 public/index.html    单文件操作台：记账、余额、流水、对账（无构建步骤，直接由上面的服务托管）
 scripts/             截图脚本（capture.mjs 用 Playwright，screenshot.sh 用本机浏览器）
 docs/                截图与设计笔记
@@ -114,6 +117,12 @@ DUPLICATE_IN_LEDGER 账内重复入账 → 冲正
 ```
 
 「总量轧平」是陷阱：一笔多记 100、一笔少记 100，净差为 0 但差异仍在。所以 `reconciled` 同时要求「无差异 + 净差为 0」，测试里专门钉了这一条。
+
+分类之后还有一步：**差异要变成工单**。`src/recon/disposition.ts` 给每一类差异配上责任人、可执行动作、首次时限和升级路径，`POST /recon` 的 `worklist` 字段就是排好序的结果。规则和排序依据见 [对账处置手册](docs/reconciliation-runbook.md)。
+
+**6. 钱错在谁手里，决定谁先动**
+
+优先级不按金额排，按「认定难度 × 资金暴露」排：账内重复入账是我们自己的错、钱还在账上，当天冲正；金额不符相当一部分是口径问题，先查清再动账——对账里最贵的错误是为了平账而乱冲正。
 
 ## 演示输出
 
@@ -210,7 +219,7 @@ curl -X POST localhost:8787/transfers \
 ## 自测结果
 
 ```
-56 个用例全绿 · demo 断言全通过 · tsc --noEmit 无错误（需 npm i 装 @types/node）
+63 个用例全绿 · demo 断言全通过 · tsc --noEmit 无错误（需 npm i 装 @types/node）
 操作台：由 headless Chromium 真跑一遍（入金 → 支付 → 重发 → 结算 → 对账），
 无 page error、试算平衡、REPLAYED 章如期出现；同一段脚本顺带产出上面那张截图。
 ```
