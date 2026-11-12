@@ -34,6 +34,7 @@ npm ci && npm run typecheck
 - [截图](#截图)
 - [HTTP 契约](#http-契约)
 - [明确没做的](#明确没做的知道边界比假装完整重要)
+- [设计笔记](docs/design-notes.md)
 - [自测结果](#自测结果)
 - [开发](#开发)
 - [许可证](#许可证)
@@ -68,6 +69,8 @@ src/
   api/http.ts        10 个端点（含操作台与健康检查），错误码即契约（402 / 409 / 422）
 test/                56 个用例：领域单测 + 账务不变量 + 6 进程真并发 + 黄金端到端 + HTTP 端到端
 public/index.html    单文件操作台：记账、余额、流水、对账（无构建步骤，直接由上面的服务托管）
+scripts/             截图脚本（capture.mjs 用 Playwright，screenshot.sh 用本机浏览器）
+docs/                截图与设计笔记
 ```
 
 ## 几个刻意的设计决定
@@ -134,16 +137,29 @@ DUPLICATE_IN_LEDGER 账内重复入账 → 冲正
 
 左栏记账（入金 / 支付 / 结算 / 冲正），右栏科目余额、最近分录、对账。核心交互是 **「重发」按钮**：它把同一把幂等键、同一份请求体再发一次，返回里带 `replayed: true` 时票据上会盖一个斜章，而余额一分不动。幂等这件事用嘴讲很难信，用按钮点一次就懂了。
 
-对账面板会拿本机出款流水反向注入四类典型异常（重复回单 / 金额不符 / 在途不回单 / 银行单边有账），跑完按五类差异分桶，每条给出处置建议。少于 3 笔结算时面板会自己说明哪一类还没显形。
+对账面板会拿本机出款流水反向注入四类典型异常（重复回单 / 金额不符 / 在途不回单 / 银行单边有账），跑完按五类差异分桶，每条给出处置建议。
+
+![操作台](docs/console.png)
+
+上图是真跑出来的：左栏敲了一笔 92.50 的支付后点「重发」，票据上盖了 `REPLAYED` 章、返回体里 `replayed: true`，右栏余额一分没动；右下是四类差异各一条，试算平衡仍是绿的。
 
 ## 截图
 
+两种方式，都会把图落到 `docs/console.png`：
+
 ```bash
-npm run serve            # 终端 A
-./scripts/screenshot.sh  # 终端 B → docs/console.png
+# A. 本机的 Chrome / Chromium / Edge / Brave（自动找，找不到就提示手截）
+npm run serve
+./scripts/screenshot.sh
+
+# B. Playwright 自带的 Chromium（不依赖本机浏览器，顺便当 UI 冒烟测试）
+npx playwright install chromium
+node scripts/capture.mjs
 ```
 
-脚本会自动找本机的 Chrome / Chromium / Edge / Brave 跑 headless；一个都没有就直接退出并提示手截，不会假装成功。
+B 会自己造示例数据、点一遍「重发」和「跑一次对账」，然后断言：没有 page error、试算平衡、票据上出现 REPLAYED 章。任何一条不满足就退出码非 0。
+
+Playwright 刻意不进 `devDependencies`：一个一百多兆的浏览器只为了截图，不值得塞进这个「零运行时依赖」的仓库。
 
 ## HTTP 契约
 
@@ -181,12 +197,22 @@ curl -X POST localhost:8787/transfers \
 - **分库分表与热点账户**：单库 SQLite，没有考虑同一账户并发记账的行锁竞争。
 - **鉴权与审计日志**：HTTP 层没有任何认证，只做演示。
 
+## 设计笔记
+
+代码能看出做了什么，看不出为什么。几个「本来可以另一个写法」的决定单独成文：
+
+- [金额为什么不用 Decimal 库](docs/design-notes.md#一金额为什么不用-decimal-库)
+- [并发为什么交给数据库，而不是应用层加锁](docs/design-notes.md#二并发为什么交给数据库而不是应用层加锁)
+- [幂等为什么用「先插入再判断」，而不是「先查再写」](docs/design-notes.md#三幂等为什么用先插入再判断而不是先查再写)
+- [对账为什么必须分类，而不是报一个差异总数](docs/design-notes.md#六对账为什么必须分类而不是报一个差异总数)
+- [明确没做的，以及为什么不做](docs/design-notes.md#八明确没做的以及为什么不做)
+
 ## 自测结果
 
 ```
 56 个用例全绿 · demo 断言全通过 · tsc --noEmit 无错误（需 npm i 装 @types/node）
-操作台：元素 id / CSS 类 / 标签闭合 / JS 语法静态校验通过，全部接口按 UI 真实请求序列联调通过；
-未做像素级截图回归（本机无可用的 headless 浏览器）。
+操作台：由 headless Chromium 真跑一遍（入金 → 支付 → 重发 → 结算 → 对账），
+无 page error、试算平衡、REPLAYED 章如期出现；同一段脚本顺带产出上面那张截图。
 ```
 
 ## 开发

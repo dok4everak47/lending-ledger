@@ -184,7 +184,7 @@
       <h1>借贷账务台</h1>
       <span class="sub">ledger console</span>
     </div>
-    <div class="env"><span class="dot"></span><span id="env">localhost:8787</span></div>
+    <div class="env"><span class="dot"></span><span id="env">localhost</span></div>
   </header>
 
   <main>
@@ -459,24 +459,22 @@
     }
 
     // 银行侧：在本机流水上逐类注入典型异常，演示差异分类能力。
-    // 每一类都显式构造，不做「先改再删」的复合操作，避免相互抵消。
+    // 每类只注入一条，避免同一类刷屏盖住其它类。
     const bankLines = []
-
-    // 1) 渠道重复回单：同一单号推两次
-    if (ledgerLines[0]) bankLines.push({ ...ledgerLines[0] }, { ...ledgerLines[0] })
-
-    // 2) 金额不符：回单比账上多 0.05（典型的手续费口径差异）
-    if (ledgerLines[1]) {
-      bankLines.push({ ...ledgerLines[1], amount: ledgerLines[1].amount + 5 })
-    } else if (ledgerLines[0]) {
-      bankLines.push({ ...ledgerLines[0], amount: ledgerLines[0].amount + 5 })
-    }
-
-    // 3) 账有单无：第三笔起故意不回单（当日即为「在途」，超过 T+1 转「追单」）
-    //    这里只是不把 ledgerLines[2..] 放进 bankLines，无需额外代码
-
-    // 4) 单有账无：银行有回款、账上没有
-    bankLines.push({
+    ledgerLines.forEach((line, index) => {
+      const isLast = index === ledgerLines.length - 1
+      if (isLast) return                                   // 最后一笔：回单未到 → 在途
+      if (index === 0) {
+        bankLines.push({ ...line }, { ...line })           // 第一笔：渠道重复回单
+        return
+      }
+      if (index === 1) {
+        bankLines.push({ ...line, amount: line.amount + 5 }) // 第二笔：金额差 0.05
+        return
+      }
+      bankLines.push({ ...line })                          // 其余：正常回单
+    })
+    bankLines.push({                                       // 渠道有、账上没有
       externalRef: `SETTLE-BANKONLY-${Date.now().toString(36).toUpperCase()}`,
       amount: 1200,
       occurredAt: new Date().toISOString(),
@@ -489,9 +487,6 @@
     }).then((response) => response.json())
 
     renderBuckets(result.summary?.byKind)
-    const shortNote = ledgerLines.length < 3
-      ? `<div class="empty" style="padding-top:10px">当前只有 ${ledgerLines.length} 笔出款流水。「账有单无」需要 3 笔以上结算才能显形，多做两笔即可。</div>`
-      : ''
     $('diffs').innerHTML = (result.diffs ?? []).map((diff) => `
       <div class="diff">
         <span class="tag ${diff.inTransit ? 'transit' : 'bad'}">${diff.kind}${diff.inTransit ? ' · 在途' : ''}</span>
@@ -501,7 +496,7 @@
           ${diff.bankAmount !== null ? ` / 回单 ${yuan(diff.bankAmount)}` : ''}
           <br>${diff.suggestion}
         </span>
-      </div>`).join('') + shortNote || '<div class="empty">账实相符，无差异。</div>'
+      </div>`).join('') || '<div class="empty">账实相符，无差异。</div>'
   }
 
   for (const button of document.querySelectorAll('.tabs button')) {
@@ -511,6 +506,7 @@
   $('replay').addEventListener('click', () => submit(true))
   $('recon-btn').addEventListener('click', runRecon)
 
+  $('env').textContent = location.host
   setAct('funding')
   refresh()
   refreshEntries()
