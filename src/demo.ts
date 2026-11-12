@@ -33,7 +33,7 @@ function heading(text: string): void {
 const db = createDb(':memory:')
 const ledger = new Ledger(db)
 
-console.log('═══ 丰泊账务最小闭环 · 演示 ═══')
+console.log('═══ 借贷账务最小闭环 · 演示 ═══')
 
 // ── 科目 ────────────────────────────────────────────────────────────────
 const wallet = ledger.openAccount({ code: '2001', name: '用户钱包', type: 'LIABILITY' })

@@ -273,7 +273,7 @@ if (process.argv[1] === thisFile) {
   const port = Number(process.env.PORT ?? 8787)
   const db = createDb(process.env.DB_PATH ?? ':memory:')
   createApp(db).listen(port, () => {
-    console.log(`fengbo-ledger listening on http://localhost:${port}`)
+    console.log(`ledger console listening on http://localhost:${port}`)
     console.log(`  控制台：http://localhost:${port}/`)
   })
 }

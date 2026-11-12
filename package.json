@@ -1,5 +1,5 @@
 {
-  "name": "fengbo-ledger",
+  "name": "lending-ledger",
   "version": "0.1.0",
   "private": false,
   "type": "module",
@@ -16,13 +16,13 @@
   ],
   "license": "MIT",
   "author": "梁劲舟",
-  "homepage": "https://github.com/dok4everak47/fengbo-ledger#readme",
+  "homepage": "https://github.com/dok4everak47/lending-ledger#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dok4everak47/fengbo-ledger.git"
+    "url": "git+https://github.com/dok4everak47/lending-ledger.git"
   },
   "bugs": {
-    "url": "https://github.com/dok4everak47/fengbo-ledger/issues"
+    "url": "https://github.com/dok4everak47/lending-ledger/issues"
   },
   "engines": {
     "node": ">=24"

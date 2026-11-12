@@ -19,7 +19,7 @@ import { createDb } from '../src/store/db.ts'
 
 const WORKER = new URL('./fixtures/pay-worker.ts', import.meta.url)
 const WORKERS = 6
-const dir = mkdtempSync(join(tmpdir(), 'fengbo-ledger-concurrency-'))
+const dir = mkdtempSync(join(tmpdir(), 'lending-ledger-concurrency-'))
 
 after(() => rmSync(dir, { recursive: true, force: true }))
 

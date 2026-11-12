@@ -1,8 +1,8 @@
-# fengbo-ledger · 借贷账务最小闭环
+# lending-ledger · 借贷账务最小闭环
 
 **复式记账 · 幂等 · 状态机 · 冲正 · 对账**，TypeScript + SQLite，零运行时依赖，`git clone` 后直接跑。
 
-[![ci](https://github.com/dok4everak47/fengbo-ledger/actions/workflows/ci.yml/badge.svg)](https://github.com/dok4everak47/fengbo-ledger/actions/workflows/ci.yml)
+[![ci](https://github.com/dok4everak47/lending-ledger/actions/workflows/ci.yml/badge.svg)](https://github.com/dok4everak47/lending-ledger/actions/workflows/ci.yml)
 [![node](https://img.shields.io/badge/node-%3E%3D24-3c873a)](https://nodejs.org)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
